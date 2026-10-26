@@ -2385,7 +2385,8 @@ class YoutubeDL:
                         yield tokenize.NAME, last_string, last_start, last_end, last_line
                         last_string = None
                     yield type_, string_, start, end, line
-                elif type_ in [tokenize.NAME, tokenize.NUMBER, tokenize.OP]:
+                elif type_ in (tokenize.NAME, tokenize.NUMBER, tokenize.OP) or (
+                        type_ == tokenize.ERRORTOKEN and not string_.isspace()):
                     if not last_string:
                         last_string = string_
                         last_start = start

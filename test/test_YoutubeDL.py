@@ -63,6 +63,16 @@ def _make_result(formats, **kwargs):
 
 
 class TestFormatSelection(unittest.TestCase):
+    def test_unicode_format_ids(self):
+        for format_id in ('sdr-hls-audio_aac134-हिन्दी-0', 'mp4-e\u0301'):
+            with self.subTest(format_id=format_id):
+                ydl = YDL({'format': format_id})
+                ydl.process_ie_result(_make_result([
+                    {'format_id': format_id, 'url': TEST_URL, 'ext': 'mp4'},
+                ]))
+                downloaded, = ydl.downloaded_info_dicts
+                self.assertEqual(downloaded['format_id'], format_id)
+
     def test_load_info_file_reselects_formats(self):
         formats = [
             {'format_id': 'audio', 'url': 'https://example.com/audio.m4a',
