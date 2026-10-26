@@ -906,6 +906,21 @@ class TestRequestHandlerMisc:
 
 @pytest.mark.parametrize('handler', ['Urllib'], indirect=True)
 class TestUrllibRequestHandler(TestRequestHandlerBase):
+    @pytest.mark.parametrize('scheme', ['file', 'data'])
+    @pytest.mark.parametrize('request_proxies', [False, True])
+    def test_non_network_urls_ignore_proxies(self, handler, tmp_path, scheme, request_proxies):
+        if scheme == 'file':
+            filename = tmp_path / 'test.txt'
+            filename.write_bytes(b'hello world')
+            url = filename.as_uri()
+        else:
+            url = 'data:text/plain,hello%20world'
+        proxies = {'all': 'https://127.0.0.1:1'}
+        request = Request(url, proxies=proxies if request_proxies else None)
+        with handler(enable_file_urls=True, proxies=None if request_proxies else proxies) as rh:
+            response = validate_and_send(rh, request)
+            assert response.read() == b'hello world'
+
     def test_file_urls(self, handler):
         # See https://github.com/ytdl-org/youtube-dl/issues/8227
         tf = tempfile.NamedTemporaryFile(delete=False)
