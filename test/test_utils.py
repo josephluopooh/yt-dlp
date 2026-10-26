@@ -1034,6 +1034,8 @@ class TestUtil(unittest.TestCase):
         self.assertEqual(escape_rfc3986('foo%20bar'), 'foo%20bar')
 
     def test_normalize_url(self):
+        opaque_url = f'abematv-license://{"a" * 66}'
+        self.assertEqual(normalize_url(opaque_url), opaque_url)
         self.assertEqual(
             normalize_url('http://wowza.imust.org/srv/vod/telemb/new/UPLOAD/UPLOAD/20224_IncendieHavré_FD.mp4'),
             'http://wowza.imust.org/srv/vod/telemb/new/UPLOAD/UPLOAD/20224_IncendieHavre%CC%81_FD.mp4',

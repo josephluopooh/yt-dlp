@@ -235,7 +235,8 @@ def normalize_url(url):
     """Normalize URL as suggested by RFC 3986"""
     url_parsed = urllib.parse.urlparse(url)
     return url_parsed._replace(
-        netloc=url_parsed.netloc.encode('idna').decode('ascii'),
+        netloc=(url_parsed.netloc if url_parsed.netloc.isascii()
+                else url_parsed.netloc.encode('idna').decode('ascii')),
         path=escape_rfc3986(remove_dot_segments(url_parsed.path)),
         params=escape_rfc3986(url_parsed.params),
         query=escape_rfc3986(url_parsed.query),
