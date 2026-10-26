@@ -23,6 +23,7 @@ from yt_dlp.utils import (
     ExtractorError,
     LazyList,
     OnDemandPagedList,
+    ReExtractInfo,
     int_or_none,
     match_filter_func,
 )
@@ -527,6 +528,31 @@ class TestFormatSelection(unittest.TestCase):
 
 
 class TestYoutubeDL(unittest.TestCase):
+    def test_wait_for_video_unknown_release_time(self):
+        for info in ({}, {'live_status': None}, {'live_status': 'is_upcoming'}):
+            for bounds in ((5, 15), (0, 10)):
+                with self.subTest(info=info, bounds=bounds):
+                    ydl = YDL({'wait_for_video': bounds})
+                    with patch('yt_dlp.YoutubeDL.random.uniform', return_value=7) as uniform, \
+                            patch('yt_dlp.YoutubeDL.time.time', return_value=1000), \
+                            patch('yt_dlp.YoutubeDL.time.sleep', side_effect=KeyboardInterrupt):
+                        with self.assertRaises(ReExtractInfo):
+                            ydl._wait_for_video(info)
+                    uniform.assert_called_once_with(*bounds)
+                    self.assertIn('[wait] Waiting for 00:00:07 - Press Ctrl+C to try now', ydl.msgs)
+
+    def test_wait_for_video_known_release_time(self):
+        for timestamp, expected in ((1003, 5), (1007, 7), (1020, 15)):
+            with self.subTest(timestamp=timestamp):
+                ydl = YDL({'wait_for_video': (5, 15)})
+                with patch('yt_dlp.YoutubeDL.random.uniform') as uniform, \
+                        patch('yt_dlp.YoutubeDL.time.time', return_value=1000), \
+                        patch('yt_dlp.YoutubeDL.time.sleep', side_effect=KeyboardInterrupt):
+                    with self.assertRaises(ReExtractInfo):
+                        ydl._wait_for_video({'release_timestamp': timestamp})
+                uniform.assert_not_called()
+                self.assertIn(f'[wait] Waiting for 00:00:{expected:02} - Press Ctrl+C to try now', ydl.msgs)
+
     def test_subtitles(self):
         def s_formats(lang, autocaption=False):
             return [{

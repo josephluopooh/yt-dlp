@@ -1773,9 +1773,11 @@ class YoutubeDL:
 
         min_wait, max_wait = self.params.get('wait_for_video')
         diff = try_get(ie_result, lambda x: x['release_timestamp'] - time.time())
-        if diff is None and ie_result.get('live_status') == 'is_upcoming':
-            diff = round(random.uniform(min_wait, max_wait) if (max_wait and min_wait) else (max_wait or min_wait), 0)
-            self.report_warning('Release time of video is not known')
+        if diff is None:
+            diff = round(random.uniform(min_wait, max_wait)
+                         if min_wait is not None and max_wait is not None else (max_wait or min_wait), 0)
+            if ie_result.get('live_status') == 'is_upcoming':
+                self.report_warning('Release time of video is not known')
         elif ie_result and (diff or 0) <= 0:
             self.report_warning('Video should already be available according to extracted info')
         diff = min(max(diff or 0, min_wait or 0), max_wait or float('inf'))
