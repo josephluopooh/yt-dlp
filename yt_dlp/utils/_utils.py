@@ -4949,7 +4949,9 @@ class Config:
             self._loaded_paths.add(location)
 
         self.__initialized = True
-        opts, _ = self.parser.parse_known_args(self.own_args)
+        # Config files may define aliases that change how these options are parsed.
+        # Report argument errors only after all configurations have been loaded.
+        opts, _ = self.parser.parse_known_args(self.own_args, strict=False)
         self.parsed_args = self.own_args
         for location in opts.config_locations or []:
             if location == '-':
@@ -5027,6 +5029,7 @@ class Config:
         yield from self.parsed_args or []
 
     def parse_known_args(self, **kwargs):
+        kwargs.setdefault('strict', False)
         return self.parser.parse_known_args(self.all_args, **kwargs)
 
     def parse_args(self):

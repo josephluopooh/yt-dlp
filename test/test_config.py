@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import contextlib
 import itertools
+import optparse
+import tempfile
 from pathlib import Path
 
 from yt_dlp.compat import compat_expanduser
@@ -77,6 +79,28 @@ def _generate_expected_groups():
 
 class TestConfig(unittest.TestCase):
     maxDiff = None
+
+    def test_config_alias_overrides_abbreviated_option(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            config = Path(tempdir, 'aliases.conf')
+            config.write_text('--alias srt "--skip-download"', encoding='utf-8')
+            _, opts, args = parseOpts([
+                '--ignore-config', '--config-location', str(config),
+                'https://example.com/video', '--srt'])
+            self.assertTrue(opts.skip_download)
+            self.assertEqual(args, ['https://example.com/video'])
+
+    @set_environ()
+    def test_default_config_alias_overrides_abbreviated_option(self):
+        with ConfigMock(lambda filename, default=[]: ['--alias', 'srt', '--skip-download']):
+            _, opts, args = parseOpts(['https://example.com/video', '--srt'], False)
+        self.assertTrue(opts.skip_download)
+        self.assertEqual(args, ['https://example.com/video'])
+
+    def test_invalid_options_still_fail(self):
+        for args in (['--sub-langs'], ['--playlist-start', 'invalid']):
+            with self.subTest(args=args), self.assertRaises(optparse.OptParseError):
+                parseOpts(args)
 
     def test_alias_escaped_braces(self):
         for definition, arguments in (
