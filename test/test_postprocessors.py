@@ -4,6 +4,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,6 +24,30 @@ from yt_dlp.postprocessor import (
     ModifyChaptersPP,
     SponsorBlockPP,
 )
+
+
+class TestSponsorBlock(unittest.TestCase):
+    def test_segments_outside_video(self):
+        pp = SponsorBlockPP(YoutubeDL())
+        for start, end, category, expected in (
+            (592.567, 666.564, 'sponsor', []),
+            (209, 215, 'sponsor', []),
+            (209, 209, 'poi_highlight', []),
+            (200, 215, 'sponsor', [(200, 209)]),
+            (10, 20, 'sponsor', [(10, 20)]),
+            (20, 20, 'poi_highlight', [(20, 21)]),
+        ):
+            with self.subTest(start=start, end=end, category=category):
+                segments = [{
+                    'segment': [start, end],
+                    'videoDuration': 209,
+                    'category': category,
+                    'actionType': 'poi' if category == 'poi_highlight' else 'skip',
+                }]
+                with patch.object(pp, '_get_sponsor_segments', return_value=segments), \
+                        patch.object(pp, 'report_warning'):
+                    chapters = pp._get_sponsor_chapters({'id': 'test', 'extractor_key': 'Youtube'}, 209)
+                self.assertEqual([(c['start_time'], c['end_time']) for c in chapters], expected)
 
 
 class TestMetadataFromField(unittest.TestCase):
