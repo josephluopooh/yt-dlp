@@ -3046,6 +3046,9 @@ class YoutubeDL:
 
         # The pre-processors may have modified the formats
         formats = self._get_formats(info_dict)
+        if info_dict.get('formats') is not None:
+            # Discard an earlier merged selection, e.g. from an unclean info JSON.
+            info_dict.pop('requested_formats', None)
 
         list_only = self.params.get('simulate') == 'list_only'
         interactive_format_selection = not list_only and self.format_selector == '-'

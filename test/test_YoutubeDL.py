@@ -14,6 +14,7 @@ from yt_dlp.globals import all_plugins_loaded
 import contextlib
 import copy
 import json
+import tempfile
 
 from test.helper import FakeYDL, try_rm
 from yt_dlp import YoutubeDL
@@ -62,6 +63,40 @@ def _make_result(formats, **kwargs):
 
 
 class TestFormatSelection(unittest.TestCase):
+    def test_load_info_file_reselects_formats(self):
+        formats = [
+            {'format_id': 'audio', 'url': 'https://example.com/audio.m4a',
+             'ext': 'm4a', 'vcodec': 'none', 'acodec': 'aac'},
+            {'format_id': 'video', 'url': 'https://example.com/video.mp4',
+             'ext': 'mp4', 'vcodec': 'h264', 'acodec': 'none'},
+        ]
+        original = YDL({'format': 'video+audio'}).process_ie_result(_make_result(formats))
+        self.assertEqual(len(original['requested_formats']), 2)
+
+        for playlist_depth in (0, 1, 2):
+            for format_spec in ('audio', 'video+audio'):
+                with self.subTest(playlist_depth=playlist_depth, format_spec=format_spec):
+                    info = original
+                    for depth in range(playlist_depth):
+                        info = {
+                            '_type': 'playlist', 'id': f'playlist-{depth}', 'entries': [info],
+                            'extractor': 'testex', 'extractor_key': 'TestEx',
+                        }
+                    with tempfile.TemporaryDirectory() as tempdir:
+                        filename = os.path.join(tempdir, 'test.info.json')
+                        with open(filename, 'w', encoding='utf-8') as f:
+                            json.dump(YoutubeDL.sanitize_info(info), f)
+                        ydl = YDL({'format': format_spec, 'clean_infojson': False})
+                        self.assertEqual(ydl.download_with_info_file(filename), 0)
+                    downloaded, = ydl.downloaded_info_dicts
+                    self.assertEqual(downloaded['format_id'], format_spec)
+                    if format_spec == 'audio':
+                        self.assertNotIn('requested_formats', downloaded)
+                        self.assertEqual(downloaded['url'], 'https://example.com/audio.m4a')
+                    else:
+                        self.assertEqual(
+                            [f['format_id'] for f in downloaded['requested_formats']], ['video', 'audio'])
+
     def test_prefer_free_formats(self):
         # Same resolution => download webm
         ydl = YDL()
