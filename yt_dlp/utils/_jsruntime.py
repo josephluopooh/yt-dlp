@@ -94,7 +94,7 @@ class DenoJsRuntime(JsRuntime):
         out = _get_exe_version_output(path, ['--version'])
         if not out:
             return None
-        version = detect_exe_version(out, r'^deno (\S+)', 'unknown')
+        version = detect_exe_version(out, r'(?m)^deno (\S+)', 'unknown')
         vt = version_tuple(version, lenient=True)
         return JsRuntimeInfo(
             name='deno', path=path, version=version, version_tuple=vt,
