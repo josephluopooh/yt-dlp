@@ -78,6 +78,17 @@ def _generate_expected_groups():
 class TestConfig(unittest.TestCase):
     maxDiff = None
 
+    def test_alias_escaped_braces(self):
+        for definition, arguments in (
+            ('--match-filter "title~=a{{4}}"', []),
+            ('--match-filter "title~={0}{{4}}"', ['a']),
+        ):
+            with self.subTest(definition=definition):
+                opts, args = create_parser().parse_args([
+                    '--alias', 'four-as', definition, '--four-as', *arguments])
+                self.assertEqual(opts.match_filter, ['title~=a{4}'])
+                self.assertEqual(args, [])
+
     @set_environ()
     def test_config__ENVIRON_DEFAULTS_sanity(self):
         expected = make_expected()
