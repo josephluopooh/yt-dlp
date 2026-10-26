@@ -658,6 +658,23 @@ jwplayer("mediaplayer").setup({"abouttext":"Visit Indie DB","aboutlink":"http:\/
                 }],
             })
 
+    def test_m3u8_subtitles_without_extension(self):
+        for path, extension, protocol in (
+            ('stuff.m3u8/Vtt-deu_0(100)', 'vtt', 'm3u8_native'),
+            ('subtitles.m3u8', 'vtt', 'm3u8_native'),
+            ('subtitles.vtt', 'vtt', None),
+        ):
+            with self.subTest(path=path):
+                _, subtitles = self.ie._parse_m3u8_formats_and_subtitles(
+                    '#EXTM3U\n'
+                    '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="German",'
+                    f'LANGUAGE="deu",URI="{path}"\n',
+                    m3u8_url='https://example.com/master.m3u8')
+                subtitle, = subtitles['deu']
+                self.assertEqual(subtitle['url'], f'https://example.com/{path}')
+                self.assertEqual(subtitle['ext'], extension)
+                self.assertEqual(subtitle.get('protocol'), protocol)
+
     def test_parse_m3u8_formats(self):
         _TEST_CASES = [
             (

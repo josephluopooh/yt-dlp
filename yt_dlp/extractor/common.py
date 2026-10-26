@@ -2292,7 +2292,7 @@ class InfoExtractor:
                 url = format_url(media['URI'])
                 sub_info = {
                     'url': url,
-                    'ext': determine_ext(url),
+                    'ext': determine_ext(url, default_ext='m3u8'),
                 }
                 if sub_info['ext'] == 'm3u8':
                     # Per RFC 8216 §3.1, the only possible subtitle format m3u8
