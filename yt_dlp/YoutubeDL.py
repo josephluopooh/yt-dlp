@@ -2264,6 +2264,8 @@ class YoutubeDL:
             actual_value = f.get(m.group('key'))
             if actual_value is None:
                 return m.group('none_inclusive')
+            if isinstance(actual_value, str) and isinstance(comparison_value, (int, float)):
+                return op(actual_value, m.group('value'))
             return op(actual_value, comparison_value)
         return _filter
 

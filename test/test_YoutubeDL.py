@@ -393,6 +393,21 @@ class TestFormatSelection(unittest.TestCase):
         assert_syntax_error('/')
         assert_syntax_error('[720<height]')
 
+    def test_numeric_format_id_filtering(self):
+        for format_id in ('135', '0135', '135.0', '1M'):
+            for operator in ('=', '!='):
+                with self.subTest(format_id=format_id, operator=operator):
+                    ydl = YDL({'format': f'all[format_id{operator}{format_id}]'})
+                    info = _make_result([
+                        {'format_id': identifier, 'url': TEST_URL, 'ext': 'mp4'}
+                        for identifier in ('135', '0135', '135.0', '1M')
+                    ])
+                    ydl.process_ie_result(info)
+                    self.assertCountEqual(
+                        [f['format_id'] for f in ydl.downloaded_info_dicts],
+                        [identifier for identifier in ('135', '0135', '135.0', '1M')
+                         if (identifier == format_id) == (operator == '=')])
+
     def test_format_filtering(self):
         formats = [
             {'format_id': 'A', 'filesize': 500, 'width': 1000, 'aspect_ratio': 1.0},
