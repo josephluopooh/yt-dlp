@@ -10,10 +10,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import http.server
 import re
+import tempfile
 import threading
 
 from test.helper import http_server_port, try_rm
 from yt_dlp import YoutubeDL
+from yt_dlp.downloader.dash import DashSegmentsFD
 from yt_dlp.downloader.http import HttpFD
 from yt_dlp.utils._utils import _YDLLogger as FakeLogger
 
@@ -43,7 +45,7 @@ class HTTPTestRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Range', content_range)
         return (end - start + 1) if valid_range else total
 
-    def serve(self, range=True, content_length=True):
+    def serve(self, range=True, content_length=True, last_modified=False):
         self.send_response(200)
         self.send_header('Content-Type', 'video/mp4')
         size = TEST_SIZE
@@ -51,12 +53,16 @@ class HTTPTestRequestHandler(http.server.BaseHTTPRequestHandler):
             size = self.send_content_range(TEST_SIZE)
         if content_length:
             self.send_header('Content-Length', size)
+        if last_modified:
+            self.send_header('Last-Modified', 'Wed, 21 Oct 2015 07:28:00 GMT')
         self.end_headers()
         self.wfile.write(b'#' * size)
 
     def do_GET(self):
         if self.path == '/regular':
             self.serve()
+        elif self.path == '/last-modified':
+            self.serve(last_modified=True)
         elif self.path == '/no-content-length':
             self.serve(content_length=False)
         elif self.path == '/no-range':
@@ -87,6 +93,31 @@ class TestHttpFD(unittest.TestCase):
         }), ep)
         self.assertEqual(os.path.getsize(filename), TEST_SIZE, ep)
         try_rm(filename)
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.server_thread.join()
+        self.httpd.server_close()
+
+    def test_fragment_filetime(self):
+        for concurrent_fragments in (1, 2, 4):
+            with self.subTest(concurrent_fragments=concurrent_fragments), tempfile.TemporaryDirectory() as tempdir:
+                params = {
+                    'logger': FakeLogger(), 'updatetime': True,
+                    'concurrent_fragment_downloads': concurrent_fragments,
+                }
+                filename = os.path.join(tempdir, 'video.mp4')
+                with YoutubeDL(params) as ydl:
+                    self.assertTrue(DashSegmentsFD(ydl, params).real_download(filename, {
+                        'url': f'http://127.0.0.1:{self.port}/manifest.mpd',
+                        'protocol': 'http_dash_segments',
+                        'fragments': [
+                            {'url': f'http://127.0.0.1:{self.port}/{ep}'}
+                            for ep in ('last-modified', 'last-modified', 'regular')
+                        ],
+                    }))
+                self.assertEqual(os.path.getsize(filename), TEST_SIZE * 3)
+                self.assertEqual(os.path.getmtime(filename), 1445412480)
 
     def download_all(self, params):
         for ep in ('regular', 'no-content-length', 'no-range', 'no-range-no-content-length'):

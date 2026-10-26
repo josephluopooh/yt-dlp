@@ -487,16 +487,19 @@ class FragmentFD(FileDownloader):
         if max_workers > 1:
             def _download_fragment(fragment):
                 ctx_copy = ctx.copy()
+                ctx_copy.pop('fragment_filetime', None)
                 download_fragment(fragment, ctx_copy)
-                return fragment, fragment['frag_index'], ctx_copy.get('fragment_filename_sanitized')
+                return fragment, fragment['frag_index'], ctx_copy.get('fragment_filename_sanitized'), ctx_copy.get('fragment_filetime')
 
             with tpe or concurrent.futures.ThreadPoolExecutor(max_workers) as pool:
                 try:
-                    for fragment, frag_index, frag_filename in pool.map(_download_fragment, fragments):
+                    for fragment, frag_index, frag_filename, filetime in pool.map(_download_fragment, fragments):
                         ctx.update({
                             'fragment_filename_sanitized': frag_filename,
                             'fragment_index': frag_index,
                         })
+                        if filetime:
+                            ctx['fragment_filetime'] = filetime
                         if not append_fragment(decrypt_fragment(fragment, self._read_fragment(ctx)), frag_index, ctx):
                             return False
                 except KeyboardInterrupt:
