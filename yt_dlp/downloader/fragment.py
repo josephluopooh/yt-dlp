@@ -5,6 +5,7 @@ import math
 import os
 import struct
 import time
+import uuid
 
 from .common import FileDownloader
 from .http import HttpFD
@@ -109,7 +110,12 @@ class FragmentFD(FileDownloader):
             frag_index_stream.close()
 
     def _download_fragment(self, ctx, frag_url, info_dict, headers=None, request_data=None):
-        fragment_filename = '%s-Frag%d' % (ctx['tmpfilename'], ctx['fragment_index'])
+        fragment_base = ctx['tmpfilename']
+        if fragment_base == '-':
+            fragment_base = ctx.get('stdout_fragment_base')
+            if fragment_base is None:
+                fragment_base = ctx['stdout_fragment_base'] = f'-{os.getpid()}-{uuid.uuid4().hex}'
+        fragment_filename = '%s-Frag%d' % (fragment_base, ctx['fragment_index'])
         fragment_info_dict = {
             'url': frag_url,
             'http_headers': headers or info_dict.get('http_headers'),
