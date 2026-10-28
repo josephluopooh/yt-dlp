@@ -220,6 +220,7 @@ class FragmentFD(FileDownloader):
             'tmpfilename': tmpfilename,
             # Total complete fragments downloaded so far in bytes
             'complete_frags_downloaded_bytes': resume_len,
+            'written_bytes': resume_len,
         })
 
     def _start_frag_download(self, ctx, info_dict):
@@ -436,6 +437,22 @@ class FragmentFD(FileDownloader):
         if not self.params.get('skip_unavailable_fragments', True):
             is_fatal = lambda _: True
 
+        max_filesize = self.params.get('max_filesize')
+        # The limit applies to the assembled file, not each fragment.
+        ctx['dl'].params['max_filesize'] = None
+
+        def exceeds_max_filesize(content):
+            size = ctx['written_bytes'] + len(content)
+            if max_filesize is None or size <= max_filesize:
+                return False
+            self.to_screen(
+                f'\r[download] File is larger than max-filesize ({size} bytes > {max_filesize} bytes). Aborting.')
+            ctx['dest_stream'].close()
+            return True
+
+        if exceeds_max_filesize(b''):
+            return False
+
         def download_fragment(fragment, ctx):
             if not interrupt_trigger[0]:
                 return
@@ -471,7 +488,13 @@ class FragmentFD(FileDownloader):
 
         def append_fragment(frag_content, frag_index, ctx):
             if frag_content:
-                self._append_fragment(ctx, pack_func(frag_content, frag_index))
+                packed = pack_func(frag_content, frag_index)
+                if exceeds_max_filesize(packed):
+                    if not self.params.get('keep_fragments', False):
+                        self.try_remove(ctx['fragment_filename_sanitized'])
+                    return False
+                self._append_fragment(ctx, packed)
+                ctx['written_bytes'] += len(packed)
             elif not is_fatal(frag_index - 1):
                 self.report_skip_fragment(frag_index, 'fragment not found')
             else:
@@ -493,7 +516,8 @@ class FragmentFD(FileDownloader):
 
             with tpe or concurrent.futures.ThreadPoolExecutor(max_workers) as pool:
                 try:
-                    for fragment, frag_index, frag_filename, filetime in pool.map(_download_fragment, fragments):
+                    downloaded = pool.map(_download_fragment, fragments)
+                    for fragment, frag_index, frag_filename, filetime in downloaded:
                         ctx.update({
                             'fragment_filename_sanitized': frag_filename,
                             'fragment_index': frag_index,
@@ -501,6 +525,10 @@ class FragmentFD(FileDownloader):
                         if filetime:
                             ctx['fragment_filetime'] = filetime
                         if not append_fragment(decrypt_fragment(fragment, self._read_fragment(ctx)), frag_index, ctx):
+                            if not self.params.get('keep_fragments', False):
+                                for _, _, remaining_filename, _ in downloaded:
+                                    if remaining_filename:
+                                        self.try_remove(remaining_filename)
                             return False
                 except KeyboardInterrupt:
                     self._finish_multiline_status()
@@ -524,6 +552,9 @@ class FragmentFD(FileDownloader):
                     return False
 
         if finish_func is not None:
-            ctx['dest_stream'].write(finish_func())
+            finish_content = finish_func()
+            if exceeds_max_filesize(finish_content):
+                return False
+            ctx['dest_stream'].write(finish_content)
             ctx['dest_stream'].flush()
         return self._finish_frag_download(ctx, info_dict)
